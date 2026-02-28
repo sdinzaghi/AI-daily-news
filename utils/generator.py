@@ -1,12 +1,24 @@
 import html
+from urllib.parse import urlparse
+
+
+def _safe_link(raw_link):
+    """Return the link only if it uses http or https, else '#'."""
+    try:
+        parsed = urlparse(raw_link or "")
+        if parsed.scheme.lower() in {"http", "https"}:
+            return html.escape(raw_link)
+    except Exception:
+        pass
+    return "#"
 
 
 def render_article_card(article):
     title = html.escape(article.get("title") or "Untitled")
     source = html.escape(article.get("source") or "Unknown")
     summary = html.escape(article.get("summary") or "")
-    link = html.escape(article.get("link") or "#")
-    image_url = (article.get("image") or "").strip()
+    link = _safe_link(article.get("link") or "#")
+    image_url = (article.get("image") or "").strip().replace("\n", "").replace("\r", "")
     score = article.get("score", 0)
 
     image_html = ""
@@ -39,6 +51,9 @@ def render_page(date_str, news_articles, tech_articles):
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src https:; frame-ancestors 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="X-Content-Type-Options" content="nosniff">
+<meta name="referrer" content="no-referrer">
 <title>AI Daily News — {html.escape(date_str)}</title>
 <style>
   *{{margin:0;padding:0;box-sizing:border-box}}

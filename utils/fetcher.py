@@ -1,15 +1,78 @@
 import feedparser
 import requests
 import importlib
+import ipaddress
 import re
+import socket
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
+
+# --- SSRF protection ---
+_ALLOWED_SCHEMES = {"http", "https"}
+_BLOCKED_NETWORKS = [
+    ipaddress.ip_network("169.254.0.0/16"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("100.64.0.0/10"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("fc00::/7"),
+]
+_MAX_RESPONSE_BYTES = 2 * 1024 * 1024  # 2 MB
+
+
+def _is_safe_url(url):
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme.lower() not in _ALLOWED_SCHEMES:
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        for addr in socket.getaddrinfo(hostname, None):
+            ip = ipaddress.ip_address(addr[4][0])
+            for net in _BLOCKED_NETWORKS:
+                if ip in net:
+                    return False
+        return True
+    except Exception:
+        return False
+
+
+def _safe_get(url, timeout=5):
+    """requests.get with SSRF protection and response size limit."""
+    if not _is_safe_url(url):
+        raise ValueError(f"Blocked URL: {url}")
+    resp = requests.get(url, timeout=timeout, stream=True)
+    if resp.is_redirect or resp.is_permanent_redirect:
+        target = resp.headers.get("Location", "")
+        if not _is_safe_url(target):
+            raise ValueError(f"Blocked redirect: {target}")
+    chunks = []
+    size = 0
+    for chunk in resp.iter_content(chunk_size=8192):
+        chunks.append(chunk)
+        size += len(chunk)
+        if size > _MAX_RESPONSE_BYTES:
+            resp.close()
+            raise ValueError(f"Response too large from {url}")
+    return b"".join(chunks).decode(resp.encoding or "utf-8", errors="replace")
+
+
+# --- Allowed HTML parsers (explicit registry) ---
+_ALLOWED_PARSERS = {}  # e.g. {"example_site": "utils.parser_example_site"}
+
 
 def fetch_articles(source):
     if source["type"] == "rss":
         return fetch_from_rss(source)
     elif source["type"] == "html":
-        parser_module = importlib.import_module(f"utils.parser_{source['parser']}")
+        parser_name = source.get("parser", "")
+        if parser_name not in _ALLOWED_PARSERS:
+            print(f"❌ Unknown parser: {parser_name}")
+            return []
+        parser_module = importlib.import_module(_ALLOWED_PARSERS[parser_name])
         return parser_module.fetch_articles()
     else:
         print(f"❌ Unknown source type: {source['type']}")
@@ -104,8 +167,8 @@ def fetch_main_image(url):
         return fetch_arxiv_figure(url)
     else:
         try:
-            resp = requests.get(url, timeout=5)
-            soup = BeautifulSoup(resp.text, "html.parser")
+            body = _safe_get(url)
+            soup = BeautifulSoup(body, "html.parser")
 
             candidates = soup.find_all("img")
 
@@ -136,8 +199,8 @@ def fetch_main_image(url):
 
 def fetch_fallback_summary(url):
     try:
-        resp = requests.get(url, timeout=5)
-        soup = BeautifulSoup(resp.text, "html.parser")
+        body = _safe_get(url)
+        soup = BeautifulSoup(body, "html.parser")
 
         # Try to find the main content container
         container = (
@@ -164,8 +227,8 @@ def fetch_fallback_summary(url):
 
 def fetch_arxiv_figure(paper_url):
     try:
-        resp = requests.get(paper_url, timeout=5)
-        soup = BeautifulSoup(resp.text, "html.parser")
+        body = _safe_get(paper_url)
+        soup = BeautifulSoup(body, "html.parser")
 
         match = re.search(r'arxiv\.org/abs/([\d\.]+)', paper_url)
         if not match:
@@ -173,12 +236,16 @@ def fetch_arxiv_figure(paper_url):
         paper_id = match.group(1)
 
         version_tag = soup.find("b", string=re.compile(r"v\d+"))
-        version = version_tag.text.strip() if version_tag else "v1"  # fallback to v1
+        if version_tag:
+            vmatch = re.search(r'v\d+', version_tag.text)
+            version = vmatch.group(0) if vmatch else "v1"
+        else:
+            version = "v1"
 
         html_url = f"https://arxiv.org/html/{paper_id}{version}/"
 
-        resp = requests.get(html_url, timeout=5)
-        soup = BeautifulSoup(resp.text, "html.parser")
+        body = _safe_get(html_url)
+        soup = BeautifulSoup(body, "html.parser")
         fig = soup.find("figure", class_="ltx_figure")
         if fig:
             img = fig.find("img")
