@@ -19,7 +19,6 @@ def render_article_card(article):
 
     return f"""<article style="background:#1e1e2e;border-radius:12px;padding:20px;margin-bottom:16px">
   <span style="background:#313244;color:#cdd6f4;padding:4px 10px;border-radius:6px;font-size:0.8em">{source}</span>
-  <span style="color:#6c7086;font-size:0.8em;margin-left:8px">score {score}</span>
   <h3 style="margin:10px 0 8px"><a href="{link}" target="_blank" rel="noopener" style="color:#89b4fa;text-decoration:none">{title}</a></h3>
   <p style="color:#a6adc8;line-height:1.6;margin:0">{summary}</p>
   {image_html}
