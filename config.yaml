@@ -1,0 +1,68 @@
+sources:
+  # News
+  - name: "Reuters AI"
+    type: "rss"
+    category: "news"
+    url: "https://www.reuters.com/technology/artificial-intelligence/rss.xml"
+
+  - name: "MIT Tech Review"
+    type: "rss"
+    category: "news"
+    url: "https://www.technologyreview.com/feed/"
+
+  - name: "VentureBeat AI"
+    type: "rss"
+    category: "news"
+    url: "https://venturebeat.com/category/ai/feed/"
+
+  - name: "The Decoder"
+    type: "rss"
+    category: "news"
+    url: "https://the-decoder.com/feed/"
+
+  - name: "TechCrunch AI"
+    type: "rss"
+    category: "news"
+    url: "https://techcrunch.com/tag/artificial-intelligence/feed/"
+
+  - name: "Wired AI"
+    type: "rss"
+    category: "news"
+    url: "https://www.wired.com/feed/tag/artificial-intelligence/latest/rss"
+
+  # Tech
+  - name: "Hugging Face Blog"
+    type: "rss"
+    category: "tech"
+    url: "https://huggingface.co/blog/feed.xml"
+
+  - name: "arXiv AI"
+    type: "rss"
+    category: "tech"
+    url: "https://export.arxiv.org/rss/cs.AI"
+
+  - name: "arXiv CS ML"
+    type: "rss"
+    category: "tech"
+    url: "https://export.arxiv.org/rss/cs.LG"
+
+  - name: "arXiv NLP"
+    type: "rss"
+    category: "tech"
+    url: "https://export.arxiv.org/rss/cs.CL"
+
+  - name: "arXiv StatML"
+    type: "rss"
+    category: "tech"
+    url: "https://export.arxiv.org/rss/stat.ML"
+
+  - name: "arXiv CV"
+    type: "rss"
+    category: "tech"
+    url: "https://export.arxiv.org/rss/cs.CV"
+
+  - name: "arXiv Audio & Speech"
+    type: "rss"
+    category: "tech"
+    url: "https://export.arxiv.org/rss/eess.AS"
+  
