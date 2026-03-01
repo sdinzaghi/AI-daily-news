@@ -98,6 +98,16 @@ if __name__ == "__main__":
     config = load_config()
     state = load_state()
     pushed_ids = set(state.get("pushed_ids", []))
+    date_str = date.today().strftime("%Y-%m-%d")
+
+    # Load articles already selected earlier today
+    prev_date = state.get("today_date")
+    if prev_date == date_str:
+        prev_news = state.get("today_news", [])
+        prev_tech = state.get("today_tech", [])
+    else:
+        prev_news = []
+        prev_tech = []
 
     all_articles = []
     for source in config["sources"]:
@@ -112,11 +122,28 @@ if __name__ == "__main__":
     news_sources = [s["name"] for s in config["sources"] if s.get("category") == "news"]
     tech_sources = [s["name"] for s in config["sources"] if s.get("category") == "tech"]
 
-    news_articles = [a for a in all_articles if a["source"] in news_sources]
-    tech_articles = [a for a in all_articles if a["source"] in tech_sources]
+    new_news = [a for a in all_articles if a["source"] in news_sources]
+    new_tech = [a for a in all_articles if a["source"] in tech_sources]
 
-    top_news = sorted(news_articles, key=lambda x: x["score"], reverse=True)[:8]
-    top_tech = sorted(tech_articles, key=lambda x: x["score"], reverse=True)[:5]
+    # Merge with previously selected articles from earlier runs today
+    merged_news = prev_news + new_news
+    merged_tech = prev_tech + new_tech
+
+    # Deduplicate by article id, keeping the first occurrence
+    seen_ids = set()
+    def dedup(articles):
+        result = []
+        for a in articles:
+            if a["id"] not in seen_ids:
+                seen_ids.add(a["id"])
+                result.append(a)
+        return result
+
+    merged_news = dedup(merged_news)
+    merged_tech = dedup(merged_tech)
+
+    top_news = sorted(merged_news, key=lambda x: x["score"], reverse=True)[:8]
+    top_tech = sorted(merged_tech, key=lambda x: x["score"], reverse=True)[:5]
 
     if not top_news and not top_tech:
         print("No new articles found. Skipping page generation.")
@@ -125,7 +152,6 @@ if __name__ == "__main__":
             print(f"📰 Selected: {article['title']} (Score: {article['score']})")
             pushed_ids.add(article["id"])
 
-        date_str = date.today().strftime("%Y-%m-%d")
         page_html = render_page(date_str, top_news, top_tech)
 
         docs_dir = os.path.join(os.path.dirname(__file__), "docs")
@@ -134,4 +160,9 @@ if __name__ == "__main__":
             f.write(page_html)
         print(f"✅ Generated docs/index.html for {date_str}")
 
-    save_state({"pushed_ids": list(pushed_ids)})
+    save_state({
+        "pushed_ids": list(pushed_ids),
+        "today_date": date_str,
+        "today_news": top_news,
+        "today_tech": top_tech,
+    })
